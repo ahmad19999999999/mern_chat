@@ -1,21 +1,36 @@
 import ErrorHandler from "../utils/Errorhandel.js";
 
 const errorMiddleware = (err, req, res, next) => {
-  // إذا الخطأ عبارة عن ErrorHandler استخدم كود الحالة الخاص فيه
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-
-  if(err.name==='CastError'){
-    const message=`this error invalide resorce ${err.path}`;
-    err=new ErrorHandler(404,message)
+  // معالجة CastError
+  if (err.name === "CastError") {
+    const message = `Invalid resource: ${err.path}`;
+    err = new ErrorHandler(404, message);
   }
-//duplicate err
+
+  // معالجة Duplicate key
   if (err.code === 11000) {
-        const field = Object.keys(err.keyValue)[0];
-        const value = err.keyValue[field];
-        const message = `The ${field} "${value}" is already registered. Please login to continue.`;
-        err = new ErrorHandler(message, 409);
+    let field = "field";
+    let value = "value";
+
+    if (err.keyValue) {
+      field = Object.keys(err.keyValue)[0];
+      value = err.keyValue[field];
+    } else if (err.message) {
+      // استخراج الحقل من الرسالة باستخدام Regex
+      const match = err.message.match(/index: (.+?) dup key: { :?"?(.+?)"? }/);
+      if (match) {
+        field = match[1];
+        value = match[2];
+      }
     }
+
+    const message = `The ${field} "${value}" is already registered. Please login to continue.`;
+    err = new ErrorHandler(409, message);
+  }
+
+  // الآن استخرج القيم النهائية بعد التعديلات
+  const statusCode = err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
 
   res.status(statusCode).json({
     success: false,
